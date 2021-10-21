@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const app = express();
 
@@ -17,8 +19,27 @@ const posts = [
 	}
 ];
 
-app.post('/signup', (req, res) => {
-	res.json(posts);
+const authToken = (req, res, next) => {
+	const authHeader = req.headers['authorization'];
+	const token = authHeader && authHeader.split(' ')[1];
+
+	if (!token) {
+		return res.sendStatus(403);
+	}
+
+	jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
+		if (err) return res.sendStatus(401);
+		req.user = user;
+		next();
+	});
+};
+
+const generateAccessToken = (user) => {
+	return jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '20s' });
+};
+
+app.get('/posts', authToken, (req, res) => {
+	res.json(posts.filter((post) => post.username === req.user.name));
 });
 
 app.post('/login', (req, res) => {
@@ -27,11 +48,12 @@ app.post('/login', (req, res) => {
 	const username = req.body.username;
 	const user = { name: username };
 
-	const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET);
+	const accessToken = generateAccessToken(user);
+	const refreshToken = jwt.sign(user, process.env.REFERESH_TOKEN_SECRET);
 
-	res.json(accessToken);
+	res.json({ accessToken: accessToken, refreshToken: refreshToken });
 });
 
-app.listen(3000, () => {
-	console.log('SERVER RUNNING PORT = ', 3000);
+app.listen(3001, () => {
+	console.log('SERVER RUNNING PORT = ', 3001);
 });
